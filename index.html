@@ -142,6 +142,7 @@
       <tr>
         <th>Tanggal</th>
         <th>Poin Per-Pasien</th>
+        <th>Catatan</th>
         <th>Poin Jumlah Pasien</th>
         <th>Poin Transport</th>
         <th>Total Poin Harian</th>
@@ -169,337 +170,303 @@
 
   <div id="hasil" class="result" style="display:none;"></div>
 
-    <script>
-    // Helper: parsing angka dari string (hapus Rp, ., ,,-, spasi, dsb)
-    function parseNumberString(s) {
-      if (s === undefined || s === null) return 0;
-      s = String(s).trim();
-      if (s === "") return 0;
-      // hilangkan "Rp", "rp", spaces
-      s = s.replace(/rp/ig, "").trim();
-      s = s.replace(/\s/g, "");
-      // hapus trailing ",-" atau ".-"
-      s = s.replace(/(,-|.\-)$/,"");
-      // kalau mengandung '.' dan ',', asumsikan '.' ribuan, ',' desimal (ID)
-      if (s.indexOf('.') > -1 && s.indexOf(',') > -1) {
-        s = s.replace(/\./g, '').replace(',', '.');
-      } else if (s.indexOf(',') > -1 && s.indexOf('.') === -1) {
-        // hanya koma -> anggap koma sebagai decimal
-        s = s.replace(',', '.');
+<script>
+function parseNumberString(s) {
+  if (s === undefined || s === null) return 0;
+  s = String(s).trim();
+  if (s === "") return 0;
+  s = s.replace(/rp/ig, "").trim();
+  s = s.replace(/\s/g, "");
+  s = s.replace(/(,-|.\-)$/,"");
+  if (s.indexOf('.') > -1 && s.indexOf(',') > -1) {
+    s = s.replace(/\./g, '').replace(',', '.');
+  } else if (s.indexOf(',') > -1 && s.indexOf('.') === -1) {
+    s = s.replace(',', '.');
+  } else {
+    s = s.replace(/\./g, '');
+  }
+  s = s.replace(/[^\d\-.]/g, '');
+  const n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
+}
+
+function tambahBaris(data = {}) {
+  const tbody = document.querySelector("#tabelInput tbody");
+  const tr = document.createElement("tr");
+  tr.innerHTML = `
+    <td><input type="date" value="${data.tanggal || ''}" oninput="hitungTotal()"></td>
+    <td><input type="number" step="0.01" value="${data.perPasien || ''}" placeholder="Poin per-pasien" oninput="hitungTotal()"></td>
+    <td><input type="text" value="${data.catatan || ''}" placeholder="Catatan (opsional)"></td>
+    <td><input type="number" step="0.01" value="${data.jumlahPasien || ''}" placeholder="Poin jumlah pasien" oninput="hitungTotal()"></td>
+    <td><input type="number" step="0.01" value="${data.transport || 25}" oninput="hitungTotal()"></td>
+    <td class="total-harian">0.00</td>
+    <td><button onclick="hapusBaris(this)">Hapus</button></td>
+  `;
+  tbody.appendChild(tr);
+  hitungTotal();
+}
+
+function tambahUtang(data = {}) {
+  document.getElementById("tabelUtang").style.display = "table";
+  const tbody = document.querySelector("#tabelUtang tbody");
+  const tr = document.createElement("tr");
+  tr.innerHTML = `
+    <td><input type="date" value="${data.tanggal || ''}" oninput="hitungTotal()"></td>
+    <td><input type="text" value="${data.total || ''}" placeholder="Total utang (angka, tanpa Rp)" oninput="hitungTotal()"></td>
+    <td><button onclick="hapusBaris(this)">Hapus</button></td>
+  `;
+  tbody.appendChild(tr);
+  hitungTotal();
+}
+
+function hapusBaris(btn) {
+  if (confirm("Apakah Anda yakin ingin menghapus baris ini?")) {
+    btn.parentElement.parentElement.remove();
+    hitungTotal();
+  }
+}
+
+function hitungTotal() {
+  const rows = document.querySelectorAll("#tabelInput tbody tr");
+  let totalPerPasien = 0, totalJumlahPasien = 0, totalTransport = 0;
+  let tanggalSet = new Set();
+
+  rows.forEach(r => {
+    const tanggalInput = r.children[0].querySelector("input");
+    const tanggal = tanggalInput.value;
+    tanggalInput.classList.remove("duplikat");
+
+    if (tanggal && tanggalSet.has(tanggal)) {
+      alert(`Tanggal ${tanggal} sudah ada! Silakan ganti tanggal.`);
+      tanggalInput.value = "";
+      tanggalInput.classList.add("duplikat");
+      return;
+    }
+    if (tanggal) tanggalSet.add(tanggal);
+
+    const perPasien = parseFloat(r.children[1].querySelector("input").value) || 0;
+    const jumlahPasien = parseFloat(r.children[3].querySelector("input").value) || 0;
+    const transport = parseFloat(r.children[4].querySelector("input").value) || 0;
+
+    totalPerPasien += perPasien;
+    totalJumlahPasien += jumlahPasien;
+    totalTransport += transport;
+
+    const hasilHarian = (perPasien * 0.4) + jumlahPasien + transport;
+    r.querySelector(".total-harian").textContent = hasilHarian.toFixed(2);
+  });
+
+  const hasilPerPasien = totalPerPasien * 0.4;
+  const totalAkhir = hasilPerPasien + totalJumlahPasien + totalTransport;
+
+  const rowsUtang = document.querySelectorAll("#tabelUtang tbody tr");
+  let totalUtang = 0;
+  rowsUtang.forEach(r => {
+    const raw = r.children[1].querySelector("input").value;
+    const utang = parseNumberString(raw);
+    totalUtang += utang;
+  });
+
+  const totalGajiRp = Math.round(totalAkhir * 1000);
+  const gajiBersih = totalGajiRp - Math.round(totalUtang);
+
+  const hasilDiv = document.getElementById("hasil");
+  hasilDiv.style.display = "block";
+  hasilDiv.innerHTML = `
+    <p><b>Total Poin Per-Pasien (setelah 40%):</b> ${hasilPerPasien.toFixed(2)}</p>
+    <p><b>Total Poin Jumlah Pasien:</b> ${totalJumlahPasien.toFixed(2)}</p>
+    <p><b>Total Poin Transport:</b> ${totalTransport.toFixed(2)}</p>
+    <hr>
+    <h3>Total Poin Gaji Bulan Ini: ${totalAkhir.toFixed(2)}</h3>
+    <p><b>Total Gaji (Rp):</b> Rp ${totalGajiRp.toLocaleString("id-ID")}</p>
+    <p><b>Total Utang (Rp):</b> Rp ${Math.round(totalUtang).toLocaleString("id-ID")}</p>
+    <p class="bersih">Total Gaji Bersih (Rp): Rp ${gajiBersih.toLocaleString("id-ID")}</p>
+  `;
+
+  hasilDiv.dataset.rekap = JSON.stringify({
+    hasilPerPasien: hasilPerPasien.toFixed(2),
+    totalJumlahPasien: totalJumlahPasien.toFixed(2),
+    totalTransport: totalTransport.toFixed(2),
+    totalAkhir: totalAkhir.toFixed(2),
+    totalUtang: Math.round(totalUtang),
+    gajiBersih: gajiBersih
+  });
+}
+
+function exportCSV() {
+  const rows = document.querySelectorAll("#tabelInput tr");
+  let csv = [];
+
+  rows.forEach(row => {
+    const cols = row.querySelectorAll("td, th");
+    let rowData = [];
+    cols.forEach(col => {
+      if (col.querySelector("input")) {
+        rowData.push(col.querySelector("input").value);
       } else {
-        // hanya titik (bisa jadi ribuan), hapus semua titik
-        s = s.replace(/\./g, '');
+        rowData.push(col.innerText);
       }
-      // hapus semua karakter non-digit kecuali minus dan dot
-      s = s.replace(/[^\d\-.]/g, '');
-      const n = parseFloat(s);
-      return isNaN(n) ? 0 : n;
-    }
+    });
+    csv.push(rowData.join(","));
+  });
 
-    function tambahBaris(data = {}) {
-      const tbody = document.querySelector("#tabelInput tbody");
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td><input type="date" value="${data.tanggal || ''}" oninput="hitungTotal()"></td>
-        <td><input type="number" step="0.01" value="${data.perPasien || ''}" placeholder="Poin per-pasien" oninput="hitungTotal()"></td>
-        <td><input type="number" step="0.01" value="${data.jumlahPasien || ''}" placeholder="Poin jumlah pasien" oninput="hitungTotal()"></td>
-        <td><input type="number" step="0.01" value="${data.transport || 25}" oninput="hitungTotal()"></td>
-        <td class="total-harian">0.00</td>
-        <td><button onclick="hapusBaris(this)">Hapus</button></td>
-      `;
-      tbody.appendChild(tr);
-      hitungTotal();
-    }
-
-    function tambahUtang(data = {}) {
-      document.getElementById("tabelUtang").style.display = "table";
-      const tbody = document.querySelector("#tabelUtang tbody");
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td><input type="date" value="${data.tanggal || ''}" oninput="hitungTotal()"></td>
-        <td><input type="text" value="${data.total || ''}" placeholder="Total utang (angka, tanpa Rp)" oninput="hitungTotal()"></td>
-        <td><button onclick="hapusBaris(this)">Hapus</button></td>
-      `;
-      tbody.appendChild(tr);
-      hitungTotal();
-    }
-
-    function hapusBaris(btn) {
-      if (confirm("Apakah Anda yakin ingin menghapus baris ini?")) {
-        btn.parentElement.parentElement.remove();
-        hitungTotal();
-      }
-    }
-
-    function hitungTotal() {
-      const rows = document.querySelectorAll("#tabelInput tbody tr");
-      let totalPerPasien = 0, totalJumlahPasien = 0, totalTransport = 0;
-      let tanggalSet = new Set();
-
-      rows.forEach(r => {
-        const tanggalInput = r.children[0].querySelector("input");
-        const tanggal = tanggalInput.value;
-        tanggalInput.classList.remove("duplikat");
-
-        if (tanggal && tanggalSet.has(tanggal)) {
-          alert(`Tanggal ${tanggal} sudah ada! Silakan ganti tanggal.`);
-          tanggalInput.value = "";
-          tanggalInput.classList.add("duplikat");
-          return;
+  const rowsUtang = document.querySelectorAll("#tabelUtang tr");
+  if (rowsUtang.length > 1) {
+    csv.push("");
+    csv.push("Data Utang");
+    rowsUtang.forEach(row => {
+      const cols = row.querySelectorAll("td, th");
+      let rowData = [];
+      cols.forEach(col => {
+        if (col.querySelector("input")) {
+          rowData.push(col.querySelector("input").value);
+        } else {
+          rowData.push(col.innerText);
         }
-        if (tanggal) tanggalSet.add(tanggal);
-
-        const perPasien = parseFloat(r.children[1].querySelector("input").value) || 0;
-        const jumlahPasien = parseFloat(r.children[2].querySelector("input").value) || 0;
-        const transport = parseFloat(r.children[3].querySelector("input").value) || 0;
-
-        totalPerPasien += perPasien;
-        totalJumlahPasien += jumlahPasien;
-        totalTransport += transport;
-
-        const hasilHarian = (perPasien * 0.4) + jumlahPasien + transport;
-        r.querySelector(".total-harian").textContent = hasilHarian.toFixed(2);
       });
+      csv.push(rowData.join(","));
+    });
+  }
 
-      const hasilPerPasien = totalPerPasien * 0.4;
-      const totalAkhir = hasilPerPasien + totalJumlahPasien + totalTransport;
+  const hasilDiv = document.getElementById("hasil");
+  if (hasilDiv.dataset.rekap) {
+    const rekap = JSON.parse(hasilDiv.dataset.rekap);
+    csv.push("");
+    csv.push("Rekap Bulanan");
+    csv.push("Total Poin Per-Pasien (40%)," + rekap.hasilPerPasien);
+    csv.push("Total Poin Jumlah Pasien," + rekap.totalJumlahPasien);
+    csv.push("Total Poin Transport," + rekap.totalTransport);
+    csv.push("TOTAL POIN GAJI," + rekap.totalAkhir);
+    csv.push("TOTAL GAJI (Rp),Rp " + (parseFloat(rekap.totalAkhir) * 1000).toLocaleString("id-ID"));
+    csv.push("TOTAL UTANG (Rp),Rp " + Number(rekap.totalUtang).toLocaleString("id-ID"));
+    csv.push("TOTAL GAJI BERSIH (Rp),Rp " + Number(rekap.gajiBersih).toLocaleString("id-ID"));
+  }
 
-      // hitung total utang (parsing lebih robust agar tidak salah karena format)
-      const rowsUtang = document.querySelectorAll("#tabelUtang tbody tr");
-      let totalUtang = 0;
-      rowsUtang.forEach(r => {
-        const raw = r.children[1].querySelector("input").value;
-        const utang = parseNumberString(raw);
-        totalUtang += utang;
-      });
+  const csvContent = "data:text/csv;charset=utf-8," + csv.join("\n");
+  const encodedUri = encodeURI(csvContent);
+  const link = document.createElement("a");
+  link.setAttribute("href", encodedUri);
 
-      // gaji bersih: totalAkhir (poin) * 1000 -> rupiah, dikurangi totalUtang (diasumsikan sudah rupiah)
-      const totalGajiRp = Math.round(totalAkhir * 1000);
-      const gajiBersih = totalGajiRp - Math.round(totalUtang);
+  let namaFile = document.getElementById("namaFile").value.trim();
+  if (namaFile === "") namaFile = "rekap_poin_gaji.csv";
+  if (!namaFile.endsWith(".csv")) namaFile += ".csv";
 
-      const hasilDiv = document.getElementById("hasil");
-      hasilDiv.style.display = "block";
-      hasilDiv.innerHTML = `
-        <p><b>Total Poin Per-Pasien (setelah 40%):</b> ${hasilPerPasien.toFixed(2)}</p>
-        <p><b>Total Poin Jumlah Pasien:</b> ${totalJumlahPasien.toFixed(2)}</p>
-        <p><b>Total Poin Transport:</b> ${totalTransport.toFixed(2)}</p>
-        <hr>
-        <h3>Total Poin Gaji Bulan Ini: ${totalAkhir.toFixed(2)}</h3>
-        <p><b>Total Gaji (Rp):</b> Rp ${totalGajiRp.toLocaleString("id-ID")}</p>
-        <p><b>Total Utang (Rp):</b> Rp ${Math.round(totalUtang).toLocaleString("id-ID")}</p>
-        <p class="bersih">Total Gaji Bersih (Rp): Rp ${gajiBersih.toLocaleString("id-ID")}</p>
-      `;
+  link.setAttribute("download", namaFile);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
 
-      // simpan rekap (angka yang relefan sebagai number/string)
-      hasilDiv.dataset.rekap = JSON.stringify({
-        hasilPerPasien: hasilPerPasien.toFixed(2),
-        totalJumlahPasien: totalJumlahPasien.toFixed(2),
-        totalTransport: totalTransport.toFixed(2),
-        totalAkhir: totalAkhir.toFixed(2),
-        totalUtang: Math.round(totalUtang), // rupiah
-        gajiBersih: gajiBersih // rupiah
-      });
+function importCSV(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  if (!file.name.toLowerCase().endsWith('.csv')) {
+    alert("Mohon pilih file CSV (.csv).");
+    event.target.value = "";
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const raw = e.target.result;
+    const allLines = raw.split(/\r?\n/);
+    let headerIndex = -1;
+    for (let i = 0; i < allLines.length; i++) {
+      if (allLines[i].trim() !== "") { headerIndex = i; break; }
     }
-
-    function exportCSV() {
-      const rows = document.querySelectorAll("#tabelInput tr");
-      let csv = [];
-
-      rows.forEach(row => {
-        const cols = row.querySelectorAll("td, th");
-        let rowData = [];
-        cols.forEach(col => {
-          if (col.querySelector("input")) {
-            rowData.push(col.querySelector("input").value);
-          } else {
-            rowData.push(col.innerText);
-          }
-        });
-        csv.push(rowData.join(","));
-      });
-
-      // data utang
-      const rowsUtang = document.querySelectorAll("#tabelUtang tr");
-      if (rowsUtang.length > 1) {
-        csv.push("");
-        csv.push("Data Utang");
-        rowsUtang.forEach(row => {
-          const cols = row.querySelectorAll("td, th");
-          let rowData = [];
-          cols.forEach(col => {
-            if (col.querySelector("input")) {
-              rowData.push(col.querySelector("input").value);
-            } else {
-              rowData.push(col.innerText);
-            }
-          });
-          csv.push(rowData.join(","));
-        });
+    if (headerIndex === -1) {
+      alert("File kosong.");
+      return;
+    }
+    const header = allLines[headerIndex].trim().toLowerCase();
+    if (!(header.includes("tanggal") && header.includes("poin"))) {
+      alert("File bukan hasil export aplikasi ini.");
+      return;
+    }
+    document.querySelector("#tabelInput tbody").innerHTML = "";
+    document.querySelector("#tabelUtang tbody").innerHTML = "";
+    document.getElementById("tabelUtang").style.display = "none";
+    let mode = "hari";
+    for (let i = headerIndex + 1; i < allLines.length; i++) {
+      const lineRaw = allLines[i].trim();
+      if (lineRaw === "") continue;
+      const low = lineRaw.toLowerCase();
+      if (low.startsWith("data utang") || low.startsWith("tanggal utang")) {
+        mode = "utang"; continue;
       }
-
-      const hasilDiv = document.getElementById("hasil");
-      if (hasilDiv.dataset.rekap) {
-        const rekap = JSON.parse(hasilDiv.dataset.rekap);
-        csv.push("");
-        csv.push("Rekap Bulanan");
-        csv.push("Total Poin Per-Pasien (40%)," + rekap.hasilPerPasien);
-        csv.push("Total Poin Jumlah Pasien," + rekap.totalJumlahPasien);
-        csv.push("Total Poin Transport," + rekap.totalTransport);
-        csv.push("TOTAL POIN GAJI," + rekap.totalAkhir);
-        csv.push("TOTAL GAJI (Rp),Rp " + (parseFloat(rekap.totalAkhir) * 1000).toLocaleString("id-ID"));
-        csv.push("TOTAL UTANG (Rp),Rp " + Number(rekap.totalUtang).toLocaleString("id-ID"));
-        csv.push("TOTAL GAJI BERSIH (Rp),Rp " + Number(rekap.gajiBersih).toLocaleString("id-ID"));
-      }
-
-      const csvContent = "data:text/csv;charset=utf-8," + csv.join("\n");
-      const encodedUri = encodeURI(csvContent);
-      const link = document.createElement("a");
-      link.setAttribute("href", encodedUri);
-
-      let namaFile = document.getElementById("namaFile").value.trim();
-      if (namaFile === "") namaFile = "rekap_poin_gaji.csv";
-      if (!namaFile.endsWith(".csv")) namaFile += ".csv";
-
-      link.setAttribute("download", namaFile);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
-
-    // Import CSV (validasi format file)
-    function importCSV(event) {
-      const file = event.target.files[0];
-      if (!file) return;
-
-      // cek ekstensi .csv
-      if (!file.name.toLowerCase().endsWith('.csv')) {
-        alert("Mohon pilih file CSV (.csv). File lain tidak didukung.");
-        event.target.value = ""; // reset input
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        const raw = e.target.result;
-        // split lines, tetap jaga urutan; jangan hilangkan lines yang kosong penting
-        const allLines = raw.split(/\r?\n/);
-        // cari header line pertama non-empty
-        let headerIndex = -1;
-        for (let i = 0; i < allLines.length; i++) {
-          if (allLines[i].trim() !== "") { headerIndex = i; break; }
+      if (low.startsWith("rekap")) break;
+      const parts = lineRaw.split(',').map(p => p.trim());
+      if (mode === "hari") {
+        if (parts.length >= 5) {
+          const tgl = parts[0];
+          const perPasien = parseNumberString(parts[1]);
+          const catatan = parts[2];
+          const jumlahPasien = parseNumberString(parts[3]);
+          const transport = parseNumberString(parts[4]);
+          tambahBaris({ tanggal: tgl, perPasien, catatan, jumlahPasien, transport });
         }
-        if (headerIndex === -1) {
-          alert("File kosong atau tidak dapat dibaca.");
-          return;
-        }
-        const header = allLines[headerIndex].trim().toLowerCase();
-
-        // validasi sederhana: harus mengandung kata 'tanggal' dan 'poin'
-        if (!(header.includes("tanggal") && header.includes("poin"))) {
-          alert("File yang di-upload bukan hasil export dari aplikasi ini (header tidak cocok).");
-          return;
-        }
-
-        // bersihkan tabel sekarang
-        document.querySelector("#tabelInput tbody").innerHTML = "";
-        document.querySelector("#tabelUtang tbody").innerHTML = "";
-        document.getElementById("tabelUtang").style.display = "none";
-
-        // parsing: mulai dari headerIndex+1
-        let mode = "hari";
-        for (let i = headerIndex + 1; i < allLines.length; i++) {
-          const lineRaw = allLines[i].trim();
-          if (lineRaw === "") continue; // skip kosong
-          const low = lineRaw.toLowerCase();
-          if (low.startsWith("data utang") || low.startsWith("tanggal utang")) {
-            mode = "utang";
-            continue;
-          }
-          if (low.startsWith("rekap bulanan") || low.startsWith("rekap bulanan") || low.startsWith("rekap")) {
-            break; // selesai bagian data
-          }
-
-          const parts = lineRaw.split(',').map(p => p.trim());
-          if (mode === "hari") {
-            // expect: tanggal, perPasien, jumlahPasien, transport, totalHarian, (aksi)
-            if (parts.length >= 4) {
-              // parse numbers robustly
-              const tgl = parts[0];
-              const perPasien = parseNumberString(parts[1]);
-              const jumlahPasien = parseNumberString(parts[2]);
-              const transport = parseNumberString(parts[3]);
-              tambahBaris({ tanggal: tgl, perPasien: perPasien, jumlahPasien: jumlahPasien, transport: transport });
-            }
-          } else if (mode === "utang") {
-            // expect: tanggal, nominal, (aksi)
-            if (parts.length >= 2) {
-              const tgl = parts[0];
-              const nominal = parseNumberString(parts[1]);
-              tambahUtang({ tanggal: tgl, total: nominal });
-            }
-          }
-        }
-
-        hitungTotal();
-        alert("Import berhasil!");
-        event.target.value = ""; // reset
-      };
-      reader.readAsText(file, "UTF-8");
-    }
-
-    // Simpan data ke LocalStorage
-    function saveData() {
-      const rows = document.querySelectorAll("#tabelInput tbody tr");
-      const rowsUtang = document.querySelectorAll("#tabelUtang tbody tr");
-      let data = { hari: [], utang: [] };
-
-      rows.forEach(r => {
-        data.hari.push({
-          tanggal: r.children[0].querySelector("input").value,
-          perPasien: r.children[1].querySelector("input").value,
-          jumlahPasien: r.children[2].querySelector("input").value,
-          transport: r.children[3].querySelector("input").value
-        });
-      });
-
-      rowsUtang.forEach(r => {
-        data.utang.push({
-          tanggal: r.children[0].querySelector("input").value,
-          total: r.children[1].querySelector("input").value
-        });
-      });
-
-      localStorage.setItem("rekapPoinGaji", JSON.stringify(data));
-      alert("Data berhasil disimpan!");
-    }
-
-    // Hapus data LocalStorage
-    function clearData() {
-      if (confirm("Yakin ingin menghapus semua data tersimpan?")) {
-        localStorage.removeItem("rekapPoinGaji");
-        document.querySelector("#tabelInput tbody").innerHTML = "";
-        document.querySelector("#tabelUtang tbody").innerHTML = "";
-        document.getElementById("tabelUtang").style.display = "none";
-        document.getElementById("hasil").style.display = "none";
-        alert("Data terhapus.");
-      }
-    }
-
-    // Load data saat halaman dibuka
-    window.onload = function() {
-      const saved = localStorage.getItem("rekapPoinGaji");
-      if (saved) {
-        try {
-          const data = JSON.parse(saved);
-          if (data.hari) data.hari.forEach(d => tambahBaris(d));
-          if (data.utang && data.utang.length > 0) {
-            data.utang.forEach(u => tambahUtang(u));
-          }
-        } catch (e) {
-          console.error("Gagal load data tersimpan:", e);
+      } else if (mode === "utang") {
+        if (parts.length >= 2) {
+          const tgl = parts[0];
+          const nominal = parseNumberString(parts[1]);
+          tambahUtang({ tanggal: tgl, total: nominal });
         }
       }
-    };
-  </script>
+    }
+    hitungTotal();
+    alert("Import berhasil!");
+    event.target.value = "";
+  };
+  reader.readAsText(file, "UTF-8");
+}
+
+function saveData() {
+  const rows = document.querySelectorAll("#tabelInput tbody tr");
+  const rowsUtang = document.querySelectorAll("#tabelUtang tbody tr");
+  let data = { hari: [], utang: [] };
+  rows.forEach(r => {
+    data.hari.push({
+      tanggal: r.children[0].querySelector("input").value,
+      perPasien: r.children[1].querySelector("input").value,
+      catatan: r.children[2].querySelector("input").value,
+      jumlahPasien: r.children[3].querySelector("input").value,
+      transport: r.children[4].querySelector("input").value
+    });
+  });
+  rowsUtang.forEach(r => {
+    data.utang.push({
+      tanggal: r.children[0].querySelector("input").value,
+      total: r.children[1].querySelector("input").value
+    });
+  });
+  localStorage.setItem("rekapPoinGaji", JSON.stringify(data));
+  alert("Data berhasil disimpan!");
+}
+
+function clearData() {
+  if (confirm("Yakin ingin menghapus semua data tersimpan?")) {
+    localStorage.removeItem("rekapPoinGaji");
+    document.querySelector("#tabelInput tbody").innerHTML = "";
+    document.querySelector("#tabelUtang tbody").innerHTML = "";
+    document.getElementById("tabelUtang").style.display = "none";
+    document.getElementById("hasil").style.display = "none";
+    alert("Data terhapus.");
+  }
+}
+
+window.onload = function() {
+  const saved = localStorage.getItem("rekapPoinGaji");
+  if (saved) {
+    try {
+      const data = JSON.parse(saved);
+      if (data.hari) data.hari.forEach(d => tambahBaris(d));
+      if (data.utang && data.utang.length > 0) {
+        data.utang.forEach(u => tambahUtang(u));
+      }
+    } catch (e) {
+      console.error("Gagal load:", e);
+    }
+  }
+};
+</script>
 </body>
 </html>
