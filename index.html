@@ -145,7 +145,7 @@ function parseNumberString(s) {
   if (s === "") return 0;
   s = s.replace(/rp/ig, "").trim();
   s = s.replace(/\s/g, "");
-  s = s.replace(/(,-|.\-)$/,"");
+  s = s.replace(/(,-|\.-)$/,"");
   if (s.indexOf('.') > -1 && s.indexOf(',') > -1) {
     s = s.replace(/\./g, '').replace(',', '.');
   } else if (s.indexOf(',') > -1 && s.indexOf('.') === -1) {
@@ -310,19 +310,20 @@ function exportCSV() {
     csv.push("TOTAL GAJI BERSIH (Rp),Rp " + Number(rekap.gajiBersih).toLocaleString("id-ID"));
   }
 
-  const csvContent = "data:text/csv;charset=utf-8," + csv.join("\n");
-  const encodedUri = encodeURI(csvContent);
+  const blob = new Blob([csv.join("\n")], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
-  link.setAttribute("href", encodedUri);
+  link.href = url;
 
   let namaFile = document.getElementById("namaFile").value.trim();
   if (namaFile === "") namaFile = "rekap_poin_gaji.csv";
   if (!namaFile.endsWith(".csv")) namaFile += ".csv";
 
-  link.setAttribute("download", namaFile);
+  link.download = namaFile;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }
 
 function importCSV(event) {
@@ -335,42 +336,36 @@ function importCSV(event) {
   }
   const reader = new FileReader();
   reader.onload = function(e) {
-    const raw = e.target.result;
-    const allLines = raw.split(/\r?\n/).map(l => l.trim()).filter(l => l !== "");
-    if (allLines.length === 0) {
-      alert("File kosong.");
+    const raw = e.target.result.replace(/^\uFEFF/, ""); // hapus BOM
+    const allLines = raw.split(/\r\n|\n|\r/).map(l => l.trim());
+
+    let headerIndex = allLines.findIndex(l => l && l.toLowerCase().includes("tanggal"));
+    if (headerIndex === -1) {
+      alert("File bukan hasil export aplikasi ini.");
       return;
     }
 
-    // cek header fleksibel
-    const header = allLines[0].toLowerCase();
-    if (!(header.includes("tanggal") && header.includes("poin"))) {
-      alert("Format file tidak sesuai (header tidak ditemukan).");
-      return;
-    }
-
-    // reset tabel
     document.querySelector("#tabelInput tbody").innerHTML = "";
     document.querySelector("#tabelUtang tbody").innerHTML = "";
     document.getElementById("tabelUtang").style.display = "none";
 
     let mode = "hari";
-    for (let i = 1; i < allLines.length; i++) {
+    for (let i = headerIndex + 1; i < allLines.length; i++) {
       const lineRaw = allLines[i];
+      if (!lineRaw) continue;
       const low = lineRaw.toLowerCase();
       if (low.startsWith("data utang") || low.startsWith("tanggal utang")) {
         mode = "utang"; continue;
       }
       if (low.startsWith("rekap")) break;
-
-      const parts = lineRaw.split(",").map(p => p.trim());
-      if (mode === "hari" && parts.length >= 2) {
+      const parts = lineRaw.split(',').map(p => p.trim());
+      if (mode === "hari" && parts.length >= 5) {
         tambahBaris({
           tanggal: parts[0],
           perPasien: parseNumberString(parts[1]),
-          catatan: parts[2] || "",
-          jumlahPasien: parseNumberString(parts[3] || "0"),
-          transport: parseNumberString(parts[4] || "0")
+          catatan: parts[2],
+          jumlahPasien: parseNumberString(parts[3]),
+          transport: parseNumberString(parts[4])
         });
       } else if (mode === "utang" && parts.length >= 2) {
         tambahUtang({
