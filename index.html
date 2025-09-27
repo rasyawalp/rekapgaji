@@ -127,21 +127,16 @@
 <body>
   <h1>Kalkulator Poin Gaji Bulanan</h1>
 
-  <!-- Toolbar Tombol -->
   <div class="toolbar">
     <button class="add" onclick="tambahBaris()">+ Tambah Hari</button>
     <button class="utangBtn" onclick="tambahUtang()">+ Tambah Utang</button>
     <button class="export" onclick="exportCSV()">⬇ Download</button>
-
-    <!-- Import -->
     <input type="file" id="importFile" accept=".csv" style="display:none;" onchange="importCSV(event)">
     <button class="importBtn" onclick="document.getElementById('importFile').click()">⬆ Upload</button>
-
     <button class="save" onclick="saveData()">💾 Save</button>
     <button class="clear" onclick="clearData()">🗑 Clear</button>
   </div>
 
-  <!-- Tabel Input -->
   <table id="tabelInput">
     <thead>
       <tr>
@@ -157,7 +152,6 @@
     <tbody></tbody>
   </table>
 
-  <!-- Tabel Utang -->
   <table id="tabelUtang" style="display:none;">
     <thead>
       <tr>
@@ -169,17 +163,14 @@
     <tbody></tbody>
   </table>
 
-  <!-- Nama File -->
   <div class="filename">
     <label>Nama File: </label>
     <input type="text" id="namaFile" placeholder="rekap_poin_gaji.csv">
   </div>
 
-  <!-- Hasil -->
   <div id="hasil" class="result" style="display:none;"></div>
 
 <script>
-/* Fungsi parsing angka string ke number */
 function parseNumberString(s) {
   if (s === undefined || s === null) return 0;
   s = String(s).trim();
@@ -199,7 +190,6 @@ function parseNumberString(s) {
   return isNaN(n) ? 0 : n;
 }
 
-/* Tambah baris tabel hari */
 function tambahBaris(data = {}) {
   const tbody = document.querySelector("#tabelInput tbody");
   const tr = document.createElement("tr");
@@ -216,7 +206,6 @@ function tambahBaris(data = {}) {
   hitungTotal();
 }
 
-/* Tambah baris tabel utang */
 function tambahUtang(data = {}) {
   document.getElementById("tabelUtang").style.display = "table";
   const tbody = document.querySelector("#tabelUtang tbody");
@@ -230,7 +219,6 @@ function tambahUtang(data = {}) {
   hitungTotal();
 }
 
-/* Hapus baris tabel */
 function hapusBaris(btn) {
   if (confirm("Apakah Anda yakin ingin menghapus baris ini?")) {
     btn.parentElement.parentElement.remove();
@@ -238,7 +226,6 @@ function hapusBaris(btn) {
   }
 }
 
-/* Hitung total gaji */
 function hitungTotal() {
   const rows = document.querySelectorAll("#tabelInput tbody tr");
   let totalPerPasien = 0, totalJumlahPasien = 0, totalTransport = 0;
@@ -306,7 +293,6 @@ function hitungTotal() {
   });
 }
 
-/* Export ke CSV */
 function exportCSV() {
   const rows = document.querySelectorAll("#tabelInput tr");
   let csv = [];
@@ -371,7 +357,6 @@ function exportCSV() {
   document.body.removeChild(link);
 }
 
-/* Import dari CSV */
 function importCSV(event) {
   const file = event.target.files[0];
   if (!file) return;
@@ -434,7 +419,6 @@ function importCSV(event) {
   reader.readAsText(file, "UTF-8");
 }
 
-/* Simpan data ke localStorage */
 function saveData() {
   const rows = document.querySelectorAll("#tabelInput tbody tr");
   const rowsUtang = document.querySelectorAll("#tabelUtang tbody tr");
@@ -454,39 +438,35 @@ function saveData() {
       total: r.children[1].querySelector("input").value
     });
   });
-  localStorage.setItem("rekapGaji", JSON.stringify(data));
+  localStorage.setItem("rekapPoinGaji", JSON.stringify(data));
   alert("Data berhasil disimpan!");
 }
 
-/* Muat data dari localStorage */
-function loadData() {
-  const raw = localStorage.getItem("rekapGaji");
-  if (!raw) return;
-  try {
-    const data = JSON.parse(raw);
+function clearData() {
+  if (confirm("Yakin ingin menghapus semua data tersimpan?")) {
+    localStorage.removeItem("rekapPoinGaji");
     document.querySelector("#tabelInput tbody").innerHTML = "";
     document.querySelector("#tabelUtang tbody").innerHTML = "";
-    if (data.hari) data.hari.forEach(d => tambahBaris(d));
-    if (data.utang && data.utang.length > 0) {
-      data.utang.forEach(d => tambahUtang(d));
-      document.getElementById("tabelUtang").style.display = "table";
+    document.getElementById("tabelUtang").style.display = "none";
+    document.getElementById("hasil").style.display = "none";
+    alert("Data terhapus.");
+  }
+}
+
+window.onload = function() {
+  const saved = localStorage.getItem("rekapPoinGaji");
+  if (saved) {
+    try {
+      const data = JSON.parse(saved);
+      if (data.hari) data.hari.forEach(d => tambahBaris(d));
+      if (data.utang && data.utang.length > 0) {
+        data.utang.forEach(u => tambahUtang(u));
+      }
+    } catch (e) {
+      console.error("Gagal load:", e);
     }
-    hitungTotal();
-  } catch (e) {
-    console.error("Load error:", e);
   }
-}
-
-/* Hapus data localStorage */
-function clearData() {
-  if (confirm("Hapus semua data tersimpan?")) {
-    localStorage.removeItem("rekapGaji");
-    location.reload();
-  }
-}
-
-/* Load otomatis saat halaman dibuka */
-window.onload = loadData;
+};
 </script>
 </body>
 </html>
