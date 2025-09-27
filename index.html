@@ -11,7 +11,6 @@
       background: #f4f6f9;
       color: #333;
     }
-
     h1 {
       text-align: center;
       margin-bottom: 25px;
@@ -19,7 +18,6 @@
       font-size: 28px;
       font-weight: 600;
     }
-
     table {
       width: 100%;
       border-collapse: collapse;
@@ -29,24 +27,18 @@
       overflow: hidden;
       box-shadow: 0 4px 12px rgba(0,0,0,0.08);
     }
-
     th, td {
       padding: 12px 14px;
       text-align: center;
       border-bottom: 1px solid #eee;
     }
-
     th {
       background: #007bff;
       color: white;
       font-weight: 500;
       font-size: 15px;
     }
-
-    tr:last-child td {
-      border-bottom: none;
-    }
-
+    tr:last-child td { border-bottom: none; }
     input {
       width: 95%;
       padding: 8px 10px;
@@ -56,12 +48,10 @@
       font-size: 14px;
       transition: all 0.2s ease;
     }
-
     input:focus {
       border-color: #007bff;
       box-shadow: 0 0 4px rgba(0,123,255,0.3);
     }
-
     button {
       padding: 8px 15px;
       margin: 5px 4px 0 0;
@@ -72,27 +62,15 @@
       font-weight: 500;
       transition: all 0.2s ease;
     }
-
-    button:hover {
-      opacity: 0.9;
-      transform: translateY(-1px);
-    }
-
+    button:hover { opacity: 0.9; transform: translateY(-1px); }
     .add { background: #28a745; color: white; }
     .utangBtn { background: #6f42c1; color: white; }
     .export { background: #ffc107; color: #222; }
     .importBtn { background: #20c997; color: white; }
     .save { background: #17a2b8; color: white; }
     .clear { background: #dc3545; color: white; }
-
-    .filename {
-      margin: 15px 0;
-    }
-
-    .filename input {
-      width: 250px;
-    }
-
+    .filename { margin: 15px 0; }
+    .filename input { width: 250px; }
     .result {
       margin-top: 25px;
       padding: 20px;
@@ -100,28 +78,15 @@
       border-radius: 10px;
       box-shadow: 0 4px 12px rgba(0,0,0,0.08);
     }
-
-    .result h3 {
-      margin: 10px 0;
-      color: #007bff;
-    }
-
+    .result h3 { margin: 10px 0; color: #007bff; }
     .bersih {
       font-size: 22px;
       font-weight: 700;
       color: #28a745;
       margin-top: 12px;
     }
-
-    .duplikat {
-      border: 2px solid #dc3545 !important;
-      background: #f8d7da;
-    }
-
-    .toolbar {
-      text-align: center;
-      margin-bottom: 20px;
-    }
+    .duplikat { border: 2px solid #dc3545 !important; background: #f8d7da; }
+    .toolbar { text-align: center; margin-bottom: 20px; }
   </style>
 </head>
 <body>
@@ -368,17 +333,13 @@ function importCSV(event) {
   const reader = new FileReader();
   reader.onload = function(e) {
     const raw = e.target.result;
-    const allLines = raw.split(/\r?\n/);
-    let headerIndex = -1;
-    for (let i = 0; i < allLines.length; i++) {
-      if (allLines[i].trim() !== "") { headerIndex = i; break; }
-    }
-    if (headerIndex === -1) {
+    const allLines = raw.split(/\r?\n/).filter(l => l.trim() !== ""); // ✅ skip baris kosong
+    if (allLines.length === 0) {
       alert("File kosong.");
       return;
     }
-    const header = allLines[headerIndex].trim().toLowerCase();
-    if (!(header.includes("tanggal") && header.includes("poin"))) {
+    const header = allLines[0].trim().toLowerCase();
+    if (!header.includes("tanggal")) { // ✅ lebih longgar, cukup ada 'tanggal'
       alert("File bukan hasil export aplikasi ini.");
       return;
     }
@@ -386,7 +347,7 @@ function importCSV(event) {
     document.querySelector("#tabelUtang tbody").innerHTML = "";
     document.getElementById("tabelUtang").style.display = "none";
     let mode = "hari";
-    for (let i = headerIndex + 1; i < allLines.length; i++) {
+    for (let i = 1; i < allLines.length; i++) {
       const lineRaw = allLines[i].trim();
       if (lineRaw === "") continue;
       const low = lineRaw.toLowerCase();
