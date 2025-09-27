@@ -85,8 +85,14 @@
       color: #28a745;
       margin-top: 12px;
     }
-    .duplikat { border: 2px solid #dc3545 !important; background: #f8d7da; }
-    .toolbar { text-align: center; margin-bottom: 20px; }
+    .duplikat {
+      border: 2px solid #dc3545 !important;
+      background: #f8d7da;
+    }
+    .toolbar {
+      text-align: center;
+      margin-bottom: 20px;
+    }
   </style>
 </head>
 <body>
@@ -259,37 +265,28 @@ function hitungTotal() {
 }
 
 function exportCSV() {
-  const rows = document.querySelectorAll("#tabelInput tr");
   let csv = [];
+  csv.push("Tanggal,Poin Per-Pasien,Catatan,Poin Jumlah Pasien,Poin Transport");
 
+  const rows = document.querySelectorAll("#tabelInput tbody tr");
   rows.forEach(row => {
-    const cols = row.querySelectorAll("td, th");
-    let rowData = [];
-    cols.forEach(col => {
-      if (col.querySelector("input")) {
-        rowData.push(col.querySelector("input").value);
-      } else {
-        rowData.push(col.innerText);
-      }
-    });
-    csv.push(rowData.join(","));
+    const tgl = row.children[0].querySelector("input").value;
+    const perPasien = row.children[1].querySelector("input").value;
+    const catatan = row.children[2].querySelector("input").value;
+    const jumlahPasien = row.children[3].querySelector("input").value;
+    const transport = row.children[4].querySelector("input").value;
+    csv.push([tgl, perPasien, catatan, jumlahPasien, transport].join(","));
   });
 
-  const rowsUtang = document.querySelectorAll("#tabelUtang tr");
-  if (rowsUtang.length > 1) {
+  const rowsUtang = document.querySelectorAll("#tabelUtang tbody tr");
+  if (rowsUtang.length > 0) {
     csv.push("");
     csv.push("Data Utang");
+    csv.push("Tanggal Utang,Total Utang (Rp)");
     rowsUtang.forEach(row => {
-      const cols = row.querySelectorAll("td, th");
-      let rowData = [];
-      cols.forEach(col => {
-        if (col.querySelector("input")) {
-          rowData.push(col.querySelector("input").value);
-        } else {
-          rowData.push(col.innerText);
-        }
-      });
-      csv.push(rowData.join(","));
+      const tgl = row.children[0].querySelector("input").value;
+      const total = row.children[1].querySelector("input").value;
+      csv.push([tgl, total].join(","));
     });
   }
 
@@ -333,13 +330,17 @@ function importCSV(event) {
   const reader = new FileReader();
   reader.onload = function(e) {
     const raw = e.target.result;
-    const allLines = raw.split(/\r?\n/).filter(l => l.trim() !== ""); // ✅ skip baris kosong
-    if (allLines.length === 0) {
+    const allLines = raw.split(/\r?\n/);
+    let headerIndex = -1;
+    for (let i = 0; i < allLines.length; i++) {
+      if (allLines[i].trim() !== "") { headerIndex = i; break; }
+    }
+    if (headerIndex === -1) {
       alert("File kosong.");
       return;
     }
-    const header = allLines[0].trim().toLowerCase();
-    if (!header.includes("tanggal")) { // ✅ lebih longgar, cukup ada 'tanggal'
+    const header = allLines[headerIndex].trim().toLowerCase();
+    if (!(header.includes("tanggal") && header.includes("poin"))) {
       alert("File bukan hasil export aplikasi ini.");
       return;
     }
@@ -347,7 +348,7 @@ function importCSV(event) {
     document.querySelector("#tabelUtang tbody").innerHTML = "";
     document.getElementById("tabelUtang").style.display = "none";
     let mode = "hari";
-    for (let i = 1; i < allLines.length; i++) {
+    for (let i = headerIndex + 1; i < allLines.length; i++) {
       const lineRaw = allLines[i].trim();
       if (lineRaw === "") continue;
       const low = lineRaw.toLowerCase();
@@ -400,11 +401,21 @@ function saveData() {
     });
   });
   localStorage.setItem("rekapPoinGaji", JSON.stringify(data));
-  alert("Data berhasil disimpan!");
+  alert("Data berhasil disimpan di browser.");
+}
+
+function loadData() {
+  const saved = localStorage.getItem("rekapPoinGaji");
+  if (saved) {
+    const data = JSON.parse(saved);
+    data.hari.forEach(d => tambahBaris(d));
+    data.utang.forEach(d => tambahUtang(d));
+  }
+  hitungTotal();
 }
 
 function clearData() {
-  if (confirm("Yakin ingin menghapus semua data tersimpan?")) {
+  if (confirm("Hapus semua data?")) {
     localStorage.removeItem("rekapPoinGaji");
     document.querySelector("#tabelInput tbody").innerHTML = "";
     document.querySelector("#tabelUtang tbody").innerHTML = "";
@@ -414,20 +425,7 @@ function clearData() {
   }
 }
 
-window.onload = function() {
-  const saved = localStorage.getItem("rekapPoinGaji");
-  if (saved) {
-    try {
-      const data = JSON.parse(saved);
-      if (data.hari) data.hari.forEach(d => tambahBaris(d));
-      if (data.utang && data.utang.length > 0) {
-        data.utang.forEach(u => tambahUtang(u));
-      }
-    } catch (e) {
-      console.error("Gagal load:", e);
-    }
-  }
-};
+window.onload = loadData;
 </script>
 </body>
 </html>
